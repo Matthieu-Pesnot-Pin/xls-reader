@@ -46,13 +46,19 @@ server.tool(
 server.tool(
   "get_sheet",
   [
-    "Read an Excel sheet and return its content as a Markdown table.",
+    "Read an Excel sheet and return its content.",
     "Empty rows are treated as section separators — they close the current table and start a new one.",
+    "format='markdown' (default) returns Markdown table(s); format='json' returns { sheet, truncated, groups }",
+    "where groups is an array of sections. With header_row, each row is an object keyed by column name (empty cells omitted, types preserved); otherwise each row is an array of values.",
     "Data is limited by a cell budget (cols × rows, default 2000). Use max_cols / max_rows / cell_budget to override.",
   ].join(" "),
   {
     file_path: z.string().describe("Absolute or relative path to the Excel file"),
     sheet_name: z.string().describe("Name of the sheet to read"),
+    format: z
+      .enum(["markdown", "json"])
+      .optional()
+      .describe("Output format: 'markdown' (default) or 'json'"),
     cell_budget: z
       .number()
       .optional()
@@ -64,16 +70,17 @@ server.tool(
       .optional()
       .describe("Treat the first row as a column header (default: true)"),
   },
-  async ({ file_path, sheet_name, cell_budget, max_cols, max_rows, header_row }) => {
+  async ({ file_path, sheet_name, format, cell_budget, max_cols, max_rows, header_row }) => {
     try {
-      const markdown = readSheet(file_path, sheet_name, {
+      const output = readSheet(file_path, sheet_name, {
+        format,
         cellBudget: cell_budget,
         maxCols: max_cols,
         maxRows: max_rows,
         headerRow: header_row,
       });
       return {
-        content: [{ type: "text", text: markdown }],
+        content: [{ type: "text", text: output }],
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

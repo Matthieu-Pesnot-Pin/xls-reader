@@ -24,6 +24,7 @@ Reads a sheet and returns its content as a Markdown table.
 |---|---|---|---|
 | `file_path` | `string` | ✅ | Absolute or relative path to the Excel file |
 | `sheet_name` | `string` | ✅ | Name of the sheet to read |
+| `format` | `"markdown" \| "json"` | ❌ | Output format (default: `markdown`) |
 | `cell_budget` | `number` | ❌ | Maximum number of cells to return (cols × rows). Default: `2000` |
 | `max_cols` | `number` | ❌ | Override the maximum number of columns |
 | `max_rows` | `number` | ❌ | Override the maximum number of rows |
@@ -35,6 +36,30 @@ Reads a sheet and returns its content as a Markdown table.
 - **Empty cells are kept as blanks** so columns stay aligned.
 - **In-cell line breaks** are converted to a literal `\n` so they don't break the Markdown table row.
 - **Dates and booleans** are rendered as readable text rather than Excel serial numbers.
+
+#### Output formats
+
+With `format: "markdown"` (default) you get one Markdown table per section.
+
+With `format: "json"` you get a structured object — better when the agent needs to *process* the data rather than read it. Native types are preserved (numbers, booleans, dates as ISO strings) and real line breaks are kept:
+
+```json
+{
+  "sheet": "Feuille1",
+  "truncated": false,
+  "groups": [
+    [
+      { "Nom": "Dupont", "Prénom": "Jean", "Age": 42 },
+      { "Nom": "Martin", "Age": 35 }
+    ]
+  ]
+}
+```
+
+- `groups` is an array of sections (one per block separated by an empty row).
+- With `header_row: true`, each row is an **object** keyed by column name; **empty cells are omitted**.
+- With `header_row: false`, each row is an **array** of values (empty cells become `null`).
+- When data is truncated, `truncated` is `true` and a `note` field explains what was omitted.
 
 #### Size limit
 
