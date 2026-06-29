@@ -1,6 +1,6 @@
 {
   "name": "@imenam/xls-reader",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MCP server that lets AI agents read Excel files: list sheets and render any sheet as a Markdown table.",
   "type": "module",
   "main": "dist/index.js",
