@@ -1,0 +1,55 @@
+{
+  "name": "@imenam/xls-reader",
+  "version": "1.0.0",
+  "description": "MCP server that lets AI agents read Excel files: list sheets and render any sheet as a Markdown table.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "xls-reader": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build",
+    "release:patch": "npm version patch && npm publish --access public && git push origin master --follow-tags",
+    "release:minor": "npm version minor && npm publish --access public && git push origin master --follow-tags",
+    "release:major": "npm version major && npm publish --access public && git push origin master --follow-tags"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "excel",
+    "xlsx",
+    "xls",
+    "ods",
+    "csv",
+    "spreadsheet"
+  ],
+  "author": "imenam",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Matthieu-Pesnot-Pin/xls-reader.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "dotenv": "^17.3.1",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
