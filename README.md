@@ -23,8 +23,9 @@ Reads a sheet and returns its content as a Markdown table.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `file_path` | `string` | ✅ | Absolute or relative path to the Excel file |
-| `sheet_name` | `string` | ✅ | Name of the sheet to read |
-| `format` | `"markdown" \| "json"` | ❌ | Output format (default: `markdown`) |
+| `sheet_name` | `string` | ⚠️ | Name of the sheet to read. Required for `markdown`/`json`. For `json-file`: omit to export the whole workbook, or set it to export only that sheet |
+| `format` | `"markdown" \| "json" \| "json-file"` | ❌ | Output format (default: `markdown`) |
+| `output_path` | `string` | ⚠️ | Destination file for the JSON export (required when `format` is `json-file`) |
 | `cell_budget` | `number` | ❌ | Maximum number of cells to return (cols × rows). Default: `2000` |
 | `max_cols` | `number` | ❌ | Override the maximum number of columns |
 | `max_rows` | `number` | ❌ | Override the maximum number of rows |
@@ -60,6 +61,18 @@ With `format: "json"` you get a structured object — better when the agent need
 - With `header_row: true`, each row is an **object** keyed by column name; **empty cells are omitted**.
 - With `header_row: false`, each row is an **array** of values (empty cells become `null`).
 - When data is truncated, `truncated` is `true` and a `note` field explains what was omitted.
+
+With `format: "json-file"` the data (no size limit) is written to `output_path` and the tool returns the saved path. Use this when the data is too large to return inline. By default the **entire workbook** is exported; provide `sheet_name` to export only that one sheet. Size limits are ignored. The file content is:
+
+```json
+{
+  "file": "data.xlsx",
+  "sheets": [
+    { "sheet": "Feuille1", "groups": [ /* …same shape as json… */ ] },
+    { "sheet": "Feuille2", "groups": [ /* … */ ] }
+  ]
+}
+```
 
 #### Size limit
 
