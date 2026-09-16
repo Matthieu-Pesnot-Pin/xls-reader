@@ -2,12 +2,55 @@ import XLSX from "xlsx";
 import fs from "fs";
 import path from "path";
 
-export function listSheets(filePath: string): string[] {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
+/**
+ * Where the workbook bytes come from: a path on the server's own disk, or the
+ * file content sent inline (base64) when the caller runs on another machine.
+ */
+export interface WorkbookSource {
+  filePath?: string;
+  /** Base64-encoded file content (a `data:` URL prefix is accepted). */
+  fileContent?: string;
+  /** Original file name, only used to label the export. */
+  fileName?: string;
+}
+
+const BASE64_DATA_URL = /^data:[^;,]*(;[^;,]+)*;base64,/i;
+
+function decodeBase64(content: string): Buffer {
+  const cleaned = content.replace(BASE64_DATA_URL, "").replace(/\s+/g, "");
+  if (cleaned === "") {
+    throw new Error("file_content is empty.");
   }
-  const workbook = XLSX.readFile(filePath);
-  return workbook.SheetNames;
+  const buffer = Buffer.from(cleaned, "base64");
+  if (buffer.length === 0) {
+    throw new Error("file_content is not valid base64 data.");
+  }
+  return buffer;
+}
+
+function loadWorkbook(source: WorkbookSource, options: XLSX.ParsingOptions = {}): XLSX.WorkBook {
+  if (source.fileContent != null && source.fileContent !== "") {
+    return XLSX.read(decodeBase64(source.fileContent), { ...options, type: "buffer" });
+  }
+  if (!source.filePath) {
+    throw new Error("Either file_path or file_content must be provided.");
+  }
+  if (!fs.existsSync(source.filePath)) {
+    throw new Error(
+      `File not found: ${source.filePath}. If the file lives on another machine, send it with file_content (base64) instead.`
+    );
+  }
+  return XLSX.readFile(source.filePath, options);
+}
+
+function sourceLabel(source: WorkbookSource): string {
+  if (source.fileName) return path.basename(source.fileName);
+  if (source.filePath) return path.basename(source.filePath);
+  return "workbook";
+}
+
+export function listSheets(source: WorkbookSource): string[] {
+  return loadWorkbook(source).SheetNames;
 }
 
 export type OutputFormat = "markdown" | "json";
@@ -198,15 +241,11 @@ function renderMarkdown(data: SheetData): string {
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export function readSheet(
-  filePath: string,
+  source: WorkbookSource,
   sheetName: string,
   options: ReadSheetOptions = {}
 ): string {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
-  }
-
-  const workbook = XLSX.readFile(filePath, { cellDates: true });
+  const workbook = loadWorkbook(source, { cellDates: true });
   if (!workbook.SheetNames.includes(sheetName)) {
     throw new Error(
       `Sheet '${sheetName}' not found. Available: ${workbook.SheetNames.join(", ")}`
@@ -231,14 +270,10 @@ export function readSheet(
  * Exports every sheet, or only `sheetName` when provided.
  */
 export function readWorkbook(
-  filePath: string,
+  source: WorkbookSource,
   options: { headerRow?: boolean; sheetName?: string } = {}
 ): string {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
-  }
-
-  const workbook = XLSX.readFile(filePath, { cellDates: true });
+  const workbook = loadWorkbook(source, { cellDates: true });
 
   let names = workbook.SheetNames;
   if (options.sheetName) {
@@ -258,5 +293,5 @@ export function readWorkbook(
     return { sheet: name, groups: data ? buildGroups(data) : [] };
   });
 
-  return JSON.stringify({ file: path.basename(filePath), sheets }, null, 2);
+  return JSON.stringify({ file: sourceLabel(source), sheets }, null, 2);
 }

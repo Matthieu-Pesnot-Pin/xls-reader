@@ -4,6 +4,19 @@ An MCP (Model Context Protocol) server that lets AI agents read Excel files. It 
 
 Supports `.xlsx`, `.xls`, `.ods` and `.csv` (anything [SheetJS](https://sheetjs.com/) can read).
 
+## Where the file comes from
+
+Both tools take the workbook either **by path** or **by content**:
+
+- `file_path` — a path on the machine *running the server*. This is what a caller provides.
+- `file_content` — the file itself, base64-encoded (a `data:…;base64,` prefix is accepted), with `file_name` to label the output.
+
+At least one of the two is required. When both are given, `file_content` wins.
+
+**When the server runs on another machine, the content is what must travel** — a path would point at a file the server cannot see. That translation is not the agent's job: the client-side relay does it. With [`@imenam/mcp-http-gateway`](https://www.npmjs.com/package/@imenam/mcp-http-gateway) in `--mcp` mode, the relay runs next to the agent, reads the file named by `file_path`, sends `file_content`, and hides `file_content` / `file_name` from the schema it publishes — so the agent only ever names a path. Enable it with `GATEWAY_INLINE_ROOTS`, which also confines *which* folders can be read; see that package's README.
+
+Over stdio on a single machine, `file_path` is read directly and nothing else is needed.
+
 ## Tools
 
 ### `list_sheets`
@@ -12,7 +25,9 @@ Lists all sheet names (tabs) in a workbook.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `file_path` | `string` | ✅ | Absolute or relative path to the Excel file |
+| `file_path` | `string` | ⚠️ | Path to the Excel file. Resolved on the server, or read by the relay (see above) |
+| `file_content` | `string` | ⚠️ | Base64 content of the file. Normally filled in by the relay, not by the agent |
+| `file_name` | `string` | ❌ | Original file name, used only for labelling. Filled in with `file_content` |
 
 Returns the sheet names, one per line.
 
@@ -22,7 +37,9 @@ Reads a sheet and returns its content as a Markdown table.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `file_path` | `string` | ✅ | Absolute or relative path to the Excel file |
+| `file_path` | `string` | ⚠️ | Path to the Excel file. Resolved on the server, or read by the relay (see above) |
+| `file_content` | `string` | ⚠️ | Base64 content of the file. Normally filled in by the relay, not by the agent |
+| `file_name` | `string` | ❌ | Original file name, used only for labelling. Filled in with `file_content` |
 | `sheet_name` | `string` | ⚠️ | Name of the sheet to read. Required for `markdown`/`json`. For `json-file`: omit to export the whole workbook, or set it to export only that sheet |
 | `format` | `"markdown" \| "json" \| "json-file"` | ❌ | Output format (default: `markdown`) |
 | `output_path` | `string` | ⚠️ | Destination file for the JSON export (required when `format` is `json-file`) |
@@ -62,7 +79,7 @@ With `format: "json"` you get a structured object — better when the agent need
 - With `header_row: false`, each row is an **array** of values (empty cells become `null`).
 - When data is truncated, `truncated` is `true` and a `note` field explains what was omitted.
 
-With `format: "json-file"` the data (no size limit) is written to `output_path` and the tool returns the saved path. Use this when the data is too large to return inline. By default the **entire workbook** is exported; provide `sheet_name` to export only that one sheet. Size limits are ignored. The file content is:
+With `format: "json-file"` the data (no size limit) is written to `output_path` **on the server's disk** and the tool returns the saved path. Use this when the data is too large to return inline. By default the **entire workbook** is exported; provide `sheet_name` to export only that one sheet. Size limits are ignored. The file content is:
 
 ```json
 {

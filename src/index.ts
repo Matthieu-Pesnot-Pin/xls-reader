@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
 import { setupLogging } from "./logger.js";
-import { listSheets, readSheet, readWorkbook } from "./excel.js";
+import { listSheets, readSheet, readWorkbook, type WorkbookSource } from "./excel.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -20,16 +20,52 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
+// ─── Workbook source (path on this server, or inline content) ─────────────────
+const sourceShape = {
+  file_path: z
+    .string()
+    .optional()
+    .describe(
+      "Path to the Excel file on the machine running this server. Use it only when the file is local to the server; otherwise send file_content"
+    ),
+  file_content: z
+    .string()
+    .optional()
+    .describe(
+      "Base64-encoded content of the Excel file (a 'data:' URL prefix is accepted). Filled in by the client-side relay, which reads the file named by file_path on the caller's machine — a caller that provides file_path has nothing to put here. Takes precedence over file_path"
+    ),
+  file_name: z
+    .string()
+    .optional()
+    .describe(
+      "Original file name, used only to label the output. Also filled in by the relay alongside file_content"
+    ),
+};
+
+function toSource(args: {
+  file_path?: string;
+  file_content?: string;
+  file_name?: string;
+}): WorkbookSource {
+  if (!args.file_path && !args.file_content) {
+    throw new Error(
+      "Provide either file_path (file local to the server) or file_content (base64 content of the file)."
+    );
+  }
+  return { filePath: args.file_path, fileContent: args.file_content, fileName: args.file_name };
+}
+
 // ─── list_sheets ──────────────────────────────────────────────────────────────
 server.tool(
   "list_sheets",
-  "List all sheet names (tabs) in an Excel file (.xlsx, .xls, .ods, .csv).",
-  {
-    file_path: z.string().describe("Absolute or relative path to the Excel file"),
-  },
-  async ({ file_path }) => {
+  [
+    "List all sheet names (tabs) in an Excel file (.xlsx, .xls, .ods, .csv).",
+    "Pass file_path when the file sits on the machine running this server, or file_content (base64) when it does not.",
+  ].join(" "),
+  sourceShape,
+  async (args) => {
     try {
-      const sheets = listSheets(file_path);
+      const sheets = listSheets(toSource(args));
       return {
         content: [{ type: "text", text: sheets.join("\n") }],
       };
@@ -48,6 +84,7 @@ server.tool(
   "get_sheet",
   [
     "Read an Excel sheet and return its content.",
+    "Pass file_path when the file sits on the machine running this server, or file_content (base64) when it does not.",
     "Empty rows are treated as section separators — they close the current table and start a new one.",
     "format='markdown' (default) returns Markdown table(s); format='json' returns { sheet, truncated, groups }",
     "where groups is an array of sections. With header_row, each row is an object keyed by column name (empty cells omitted, types preserved); otherwise each row is an array of values.",
@@ -55,7 +92,7 @@ server.tool(
     "Data is limited by a cell budget (cols × rows, default 2000) for 'markdown' and 'json'. Use max_cols / max_rows / cell_budget to override.",
   ].join(" "),
   {
-    file_path: z.string().describe("Absolute or relative path to the Excel file"),
+    ...sourceShape,
     sheet_name: z
       .string()
       .optional()
@@ -67,7 +104,9 @@ server.tool(
     output_path: z
       .string()
       .optional()
-      .describe("Destination file path for the JSON export (required when format is 'json-file')"),
+      .describe(
+        "Destination path on the server's disk for the JSON export (required when format is 'json-file')"
+      ),
     cell_budget: z
       .number()
       .optional()
@@ -79,8 +118,10 @@ server.tool(
       .optional()
       .describe("Treat the first row as a column header (default: true)"),
   },
-  async ({ file_path, sheet_name, format, output_path, cell_budget, max_cols, max_rows, header_row }) => {
+  async ({ sheet_name, format, output_path, cell_budget, max_cols, max_rows, header_row, ...rest }) => {
     try {
+      const source = toSource(rest);
+
       if (format === "json-file") {
         if (!output_path) {
           return {
@@ -88,7 +129,7 @@ server.tool(
             isError: true,
           };
         }
-        const json = readWorkbook(file_path, { headerRow: header_row, sheetName: sheet_name });
+        const json = readWorkbook(source, { headerRow: header_row, sheetName: sheet_name });
         const resolved = path.resolve(output_path);
         fs.mkdirSync(path.dirname(resolved), { recursive: true });
         fs.writeFileSync(resolved, json, "utf-8");
@@ -104,7 +145,7 @@ server.tool(
         };
       }
 
-      const output = readSheet(file_path, sheet_name, {
+      const output = readSheet(source, sheet_name, {
         format,
         cellBudget: cell_budget,
         maxCols: max_cols,
