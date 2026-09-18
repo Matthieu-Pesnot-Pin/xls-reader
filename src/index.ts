@@ -2,12 +2,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import dotenv from "dotenv";
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
 import { setupLogging } from "./logger.js";
 import { listSheets, readSheet, readWorkbook, type WorkbookSource } from "./excel.js";
+import { deliverFile, RELAY_SHAPE_DESCRIPTIONS } from "./relay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -88,25 +88,18 @@ server.tool(
     "Empty rows are treated as section separators — they close the current table and start a new one.",
     "format='markdown' (default) returns Markdown table(s); format='json' returns { sheet, truncated, groups }",
     "where groups is an array of sections. With header_row, each row is an object keyed by column name (empty cells omitted, types preserved); otherwise each row is an array of values.",
-    "format='json-file' writes JSON (no size limit) to output_path (required) and returns the path; it exports the whole workbook, or only sheet_name when provided. Size limits are ignored.",
-    "Data is limited by a cell budget (cols × rows, default 2000) for 'markdown' and 'json'. Use max_cols / max_rows / cell_budget to override.",
+    "To export without any size limit, use export_workbook, which writes a JSON file instead of returning it.",
+    "Data is limited by a cell budget (cols × rows, default 2000). Use max_cols / max_rows / cell_budget to override.",
   ].join(" "),
   {
     ...sourceShape,
     sheet_name: z
       .string()
-      .optional()
-      .describe("Name of the sheet to read. Required for 'markdown'/'json'. For 'json-file': omit to export the whole workbook, or provide it to export only that sheet"),
+      .describe("Name of the sheet to read"),
     format: z
-      .enum(["markdown", "json", "json-file"])
+      .enum(["markdown", "json"])
       .optional()
-      .describe("Output format: 'markdown' (default), 'json', or 'json-file' (whole workbook to disk)"),
-    output_path: z
-      .string()
-      .optional()
-      .describe(
-        "Destination path on the server's disk for the JSON export (required when format is 'json-file')"
-      ),
+      .describe("Output format: 'markdown' (default) or 'json'"),
     cell_budget: z
       .number()
       .optional()
@@ -118,32 +111,9 @@ server.tool(
       .optional()
       .describe("Treat the first row as a column header (default: true)"),
   },
-  async ({ sheet_name, format, output_path, cell_budget, max_cols, max_rows, header_row, ...rest }) => {
+  async ({ sheet_name, format, cell_budget, max_cols, max_rows, header_row, ...rest }) => {
     try {
       const source = toSource(rest);
-
-      if (format === "json-file") {
-        if (!output_path) {
-          return {
-            content: [{ type: "text", text: "Error: output_path is required when format is 'json-file'." }],
-            isError: true,
-          };
-        }
-        const json = readWorkbook(source, { headerRow: header_row, sheetName: sheet_name });
-        const resolved = path.resolve(output_path);
-        fs.mkdirSync(path.dirname(resolved), { recursive: true });
-        fs.writeFileSync(resolved, json, "utf-8");
-        return {
-          content: [{ type: "text", text: `Workbook exported to ${resolved}` }],
-        };
-      }
-
-      if (!sheet_name) {
-        return {
-          content: [{ type: "text", text: "Error: sheet_name is required." }],
-          isError: true,
-        };
-      }
 
       const output = readSheet(source, sheet_name, {
         format,
@@ -155,6 +125,67 @@ server.tool(
       return {
         content: [{ type: "text", text: output }],
       };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text", text: `Error: ${message}` }],
+        isError: true,
+      };
+    }
+  }
+);
+
+// ─── export_workbook ──────────────────────────────────────────────────────────
+// L'export est un outil à part, et non un `format` de get_sheet : le relais rend
+// obligatoire tout `<x>_path` dont il voit la paire, donc porter `destination_path` dans
+// get_sheet forcerait une destination sur chaque simple lecture de feuille.
+server.tool(
+  "export_workbook",
+  [
+    "Export an Excel workbook as a JSON file written on the agent machine, with no size limit.",
+    "Exports the whole workbook, or only sheet_name when provided.",
+    "Pass file_path when the file sits on the machine running this server, or file_content (base64) when it does not.",
+    "The exported file never passes through the conversation.",
+  ].join(" "),
+  {
+    ...sourceShape,
+    sheet_name: z
+      .string()
+      .optional()
+      .describe("Omit to export the whole workbook, or provide it to export only that sheet"),
+    header_row: z
+      .boolean()
+      .optional()
+      .describe("Treat the first row as a column header (default: true)"),
+    destination_path: z.string().describe(RELAY_SHAPE_DESCRIPTIONS.destination_path),
+    filename: z.string().describe(RELAY_SHAPE_DESCRIPTIONS.filename),
+    destination_overwrite: z
+      .boolean()
+      .optional()
+      .describe(RELAY_SHAPE_DESCRIPTIONS.destination_overwrite),
+    destination_relay: z
+      .boolean()
+      .optional()
+      .describe(RELAY_SHAPE_DESCRIPTIONS.destination_relay),
+  },
+  async ({
+    sheet_name,
+    header_row,
+    destination_path,
+    filename,
+    destination_overwrite,
+    destination_relay,
+    ...rest
+  }) => {
+    try {
+      const json = readWorkbook(toSource(rest), { headerRow: header_row, sheetName: sheet_name });
+      const blocks = deliverFile(Buffer.from(json, "utf-8"), "application/json", {
+        destination_path,
+        filename,
+        destination_overwrite,
+        destination_relay,
+      });
+      return { content: blocks };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       return {

@@ -40,9 +40,8 @@ Reads a sheet and returns its content as a Markdown table.
 | `file_path` | `string` | ⚠️ | Path to the Excel file. Resolved on the server, or read by the relay (see above) |
 | `file_content` | `string` | ⚠️ | Base64 content of the file. Normally filled in by the relay, not by the agent |
 | `file_name` | `string` | ❌ | Original file name, used only for labelling. Filled in with `file_content` |
-| `sheet_name` | `string` | ⚠️ | Name of the sheet to read. Required for `markdown`/`json`. For `json-file`: omit to export the whole workbook, or set it to export only that sheet |
-| `format` | `"markdown" \| "json" \| "json-file"` | ❌ | Output format (default: `markdown`) |
-| `output_path` | `string` | ⚠️ | Destination file for the JSON export (required when `format` is `json-file`) |
+| `sheet_name` | `string` | ✅ | Name of the sheet to read |
+| `format` | `"markdown" \| "json"` | ❌ | Output format (default: `markdown`) |
 | `cell_budget` | `number` | ❌ | Maximum number of cells to return (cols × rows). Default: `2000` |
 | `max_cols` | `number` | ❌ | Override the maximum number of columns |
 | `max_rows` | `number` | ❌ | Override the maximum number of rows |
@@ -79,7 +78,31 @@ With `format: "json"` you get a structured object — better when the agent need
 - With `header_row: false`, each row is an **array** of values (empty cells become `null`).
 - When data is truncated, `truncated` is `true` and a `note` field explains what was omitted.
 
-With `format: "json-file"` the data (no size limit) is written to `output_path` **on the server's disk** and the tool returns the saved path. Use this when the data is too large to return inline. By default the **entire workbook** is exported; provide `sheet_name` to export only that one sheet. Size limits are ignored. The file content is:
+To export without any size limit, use [`export_workbook`](#export_workbook), which writes a JSON file instead of returning it.
+
+#### Size limit
+
+By default the response is capped at `cell_budget = 2000` cells (`cols × rows`). With 10 columns you get ~200 rows; with 20 columns, ~100 rows. When data is truncated, a warning is appended telling you how much was omitted. Override with `cell_budget`, `max_cols`, or `max_rows` to read more (or less).
+
+### `export_workbook`
+
+Exports a workbook as a JSON file, with **no size limit**, and writes it **on the agent machine**. Use it when the data is too large to return inline. By default the entire workbook is exported; provide `sheet_name` to export only one sheet.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `file_path` | `string` | ⚠️ | Path to the Excel file. Resolved on the server, or read by the relay (see above) |
+| `file_content` | `string` | ⚠️ | Base64 content of the file. Normally filled in by the relay, not by the agent |
+| `file_name` | `string` | ❌ | Original file name, used only for labelling. Filled in with `file_content` |
+| `sheet_name` | `string` | ❌ | Omit to export the whole workbook, or set it to export only that sheet |
+| `header_row` | `boolean` | ❌ | Treat the first row as a column header (default: `true`) |
+| `destination_path` | `string` | ✅ | **Absolute directory** on the agent machine. Created if missing |
+| `filename` | `string` | ✅ | Name the exported file gets there, e.g. `data.json`. No path separators |
+| `destination_overwrite` | `boolean` | ❌ | Replace the destination file if it exists (default: `false`) |
+| `destination_relay` | `boolean` | ❌ | Filled in by the relay, never by the agent |
+
+The exported file never passes through the conversation. When this MCP runs next to the agent (stdio), it writes the file itself. Behind [`@imenam/mcp-http-gateway`](https://www.npmjs.com/package/@imenam/mcp-http-gateway) it runs on the gateway's machine and cannot reach the agent's disk: it then returns the bytes, and the relay — which *does* run on the agent machine — writes them at `destination_path`. That path requires `GATEWAY_INLINE_WRITE_ROOTS` in the relay's `env` block; without it the call fails explicitly rather than dropping the file on the wrong machine.
+
+The file content is:
 
 ```json
 {
@@ -90,10 +113,6 @@ With `format: "json-file"` the data (no size limit) is written to `output_path` 
   ]
 }
 ```
-
-#### Size limit
-
-By default the response is capped at `cell_budget = 2000` cells (`cols × rows`). With 10 columns you get ~200 rows; with 20 columns, ~100 rows. When data is truncated, a warning is appended telling you how much was omitted. Override with `cell_budget`, `max_cols`, or `max_rows` to read more (or less).
 
 ## Installation
 
