@@ -26,7 +26,8 @@ export const RELAY_SHAPE_DESCRIPTIONS = {
 } as const;
 
 export interface DeliveryTarget {
-  destination_path: string;
+  /** Absent quand le relais l'a retenu : il n'est alors pas transmis au MCP. */
+  destination_path?: string;
   filename: string;
   destination_overwrite?: boolean;
   destination_relay?: boolean;
@@ -81,6 +82,9 @@ export function deliverFile(
   }
 
   // Pas de relais : le MCP tourne à côté de l'agent, son disque est le bon.
+  if (!target.destination_path) {
+    throw new Error("destination_path is required: the absolute directory where the file is written.");
+  }
   if (!path.isAbsolute(target.destination_path)) {
     throw new Error(
       `destination_path must be an absolute directory path: ${target.destination_path}`

@@ -157,7 +157,12 @@ server.tool(
       .boolean()
       .optional()
       .describe("Treat the first row as a column header (default: true)"),
-    destination_path: z.string().describe(RELAY_SHAPE_DESCRIPTIONS.destination_path),
+    // Optionnel au niveau du schéma : le relais retient ce chemin et ne le transmet pas.
+    // deliverFile l'exige quand l'écriture a lieu ici.
+    destination_path: z
+      .string()
+      .optional()
+      .describe(`${RELAY_SHAPE_DESCRIPTIONS.destination_path}. Required`),
     filename: z.string().describe(RELAY_SHAPE_DESCRIPTIONS.filename),
     destination_overwrite: z
       .boolean()

@@ -100,7 +100,7 @@ Exports a workbook as a JSON file, with **no size limit**, and writes it **on th
 | `destination_overwrite` | `boolean` | ❌ | Replace the destination file if it exists (default: `false`) |
 | `destination_relay` | `boolean` | ❌ | Filled in by the relay, never by the agent |
 
-The exported file never passes through the conversation. When this MCP runs next to the agent (stdio), it writes the file itself. Behind [`@imenam/mcp-http-gateway`](https://www.npmjs.com/package/@imenam/mcp-http-gateway) it runs on the gateway's machine and cannot reach the agent's disk: it then returns the bytes, and the relay — which *does* run on the agent machine — writes them at `destination_path`. That path requires `GATEWAY_INLINE_WRITE_ROOTS` in the relay's `env` block; without it the call fails explicitly rather than dropping the file on the wrong machine.
+The exported file never passes through the conversation. When this MCP runs next to the agent (stdio), it writes the file itself. Behind [`@imenam/mcp-http-gateway`](https://www.npmjs.com/package/@imenam/mcp-http-gateway) it runs on the gateway's machine and cannot reach the agent's disk: it then returns the bytes, and the relay — which *does* run on the agent machine — writes them at `destination_path`. The relay keeps that path to itself and never forwards it, which is why the tool schema declares it optional; the tool rejects a call that lacks it when it has to write the file itself. That path requires `GATEWAY_INLINE_WRITE_ROOTS` in the relay's `env` block; without it the call fails explicitly rather than dropping the file on the wrong machine.
 
 The file content is:
 
