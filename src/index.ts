@@ -136,9 +136,6 @@ server.tool(
 );
 
 // ─── export_workbook ──────────────────────────────────────────────────────────
-// L'export est un outil à part, et non un `format` de get_sheet : le relais rend
-// obligatoire tout `<x>_path` dont il voit la paire, donc porter `destination_path` dans
-// get_sheet forcerait une destination sur chaque simple lecture de feuille.
 server.tool(
   "export_workbook",
   [
