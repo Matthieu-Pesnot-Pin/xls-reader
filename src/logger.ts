@@ -1,14 +1,11 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 let currentPrefix = "";
 
 export function logToFile(message: string, prefix: string = ""): void {
-  const defaultLogDir =
-    process.platform === "win32"
-      ? "C:\\var\\log\\xls-reader"
-      : "/var/log/xls-reader";
-  const logDir = process.env.MCP_LOG_DIR ?? defaultLogDir;
+  const logDir = process.env.MCP_LOG_DIR ?? path.join(os.homedir(), ".xls-reader", "logs");
   const logFile = path.join(logDir, "server.log");
 
   const now = new Date().toLocaleString("fr-FR", {
@@ -29,8 +26,9 @@ export function logToFile(message: string, prefix: string = ""): void {
       fs.mkdirSync(logDir, { recursive: true });
     }
     fs.appendFileSync(logFile, logEntry);
-  } catch {
-    process.stderr.write("Critical: Failed to write to log file\n");
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`Critical: Failed to write to log file ${logFile}: ${reason}\n`);
   }
 }
 

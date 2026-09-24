@@ -144,7 +144,7 @@ Or point to a local build:
 
 ## Configuration
 
-No environment variables are required. Optionally, set `MCP_LOG_DIR` to change where logs are written (default: `C:\var\log\xls-reader` on Windows, `/var/log/xls-reader` otherwise).
+No environment variables are required. Optionally, set `MCP_LOG_DIR` to change where logs are written (default: `.xls-reader/logs` in the home directory of the user running the server). When the log file cannot be written, each log line is reported on stderr as `Critical: Failed to write to log file <path>: <reason>` and the server keeps running.
 
 ```env
 # .env
