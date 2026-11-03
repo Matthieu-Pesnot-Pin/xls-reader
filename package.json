@@ -14,10 +14,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "prepublishOnly": "npm run build",
-    "release:patch": "npm version patch && npm publish --access public && git push origin master --follow-tags",
-    "release:minor": "npm version minor && npm publish --access public && git push origin master --follow-tags",
-    "release:major": "npm version major && npm publish --access public && git push origin master --follow-tags"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
