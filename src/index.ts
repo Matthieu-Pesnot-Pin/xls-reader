@@ -8,6 +8,7 @@ import { z } from "zod";
 import { setupLogging } from "./logger.js";
 import { listSheets, readSheet, readWorkbook, type WorkbookSource } from "./excel.js";
 import { deliverFile, RELAY_SHAPE_DESCRIPTIONS } from "./relay.js";
+import { APP_VERSION } from "./version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -17,7 +18,7 @@ setupLogging("MASTER");
 
 const server = new McpServer({
   name: "xls-reader",
-  version: "1.0.0",
+  version: APP_VERSION,
 });
 
 // ─── Workbook source (path on this server, or inline content) ─────────────────
