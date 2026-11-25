@@ -151,6 +151,22 @@ No environment variables are required. Optionally, set `MCP_LOG_DIR` to change w
 MCP_LOG_DIR=/absolute/path/to/logs
 ```
 
+## Moving to MCP Gateway Manager
+
+Run this in the folder of the project whose `.mcp.json` declares xls-reader:
+
+```bash
+npx -y @imenam/xls-reader@latest --migrate-to-manager --name xls-reader
+```
+
+It writes `xls-reader.mcp-import.zip` in the current folder, to import from the gateway's **MCP** tab (« Importer un MCP »). `--name` picks the `.mcp.json` entry; it is required when xls-reader is declared more than once, and the command fails listing the entries otherwise.
+
+- **Carried over:** the command, its arguments and the environment variables of the entry. xls-reader has no storage folder: only its configuration is exported.
+- **Left out:** the logs, which stay on this machine.
+- **Set by the hub:** `MCP_LOG_DIR`, `PROXY_URL`, `APP_NAME`, `APP_PATH`, `APP_PORT`.
+
+The archive holds the entry's whole configuration: delete it once imported.
+
 ## Development
 
 ```bash

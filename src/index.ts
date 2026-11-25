@@ -13,6 +13,13 @@ import { APP_VERSION } from "./version.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 
+// Les flags CLI sont traités avant toute initialisation (.env, logs, serveur) :
+// ils s'exécutent dans le dossier du projet de l'utilisateur, pas dans un serveur MCP.
+if (process.argv.slice(2).includes("--migrate-to-manager")) {
+  const { runMigrateToManager } = await import("./cli/migrate-to-manager.js");
+  process.exit(await runMigrateToManager(process.argv.slice(2), process.cwd()));
+}
+
 dotenv.config({ path: path.join(rootDir, ".env"), override: true, quiet: true });
 setupLogging("MASTER");
 
